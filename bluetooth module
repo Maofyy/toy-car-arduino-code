@@ -1,0 +1,132 @@
+#include <Servo.h>
+#include <NewPing.h>
+
+#define SERVO_PIN 3
+#define ULTRASONIC_SENSOR_TRIG 11
+#define ULTRASONIC_SENSOR_ECHO 12
+#define MAX_REGULAR_MOTOR_SPEED 150
+#define MAX_MOTOR_ADJUST_SPEED 250
+#define DISTANCE_TO_CHECK 30
+
+// Right motor
+int enableRightMotor = 5;
+int rightMotorPin1 = 7;
+int rightMotorPin2 = 8;
+
+// Left motor
+int enableLeftMotor = 6;
+int leftMotorPin1 = 9;
+int leftMotorPin2 = 10;
+
+// LED
+int ledPin = 13;
+char Incoming_value = 0;
+
+NewPing mySensor(ULTRASONIC_SENSOR_TRIG, ULTRASONIC_SENSOR_ECHO, 400);
+Servo myServo;
+
+void setup() {
+  // Serial communication setup
+  Serial.begin(9600);
+
+  // LED setup
+  pinMode(ledPin, OUTPUT);
+
+  // Motor setup
+  pinMode(enableRightMotor, OUTPUT);
+  pinMode(rightMotorPin1, OUTPUT);
+  pinMode(rightMotorPin2, OUTPUT);
+
+  pinMode(enableLeftMotor, OUTPUT);
+  pinMode(leftMotorPin1, OUTPUT);
+  pinMode(leftMotorPin2, OUTPUT);
+
+  // Servo setup
+  myServo.attach(SERVO_PIN);
+  myServo.write(90);
+
+  // Ensure motors are stopped initially
+  rotateMotor(0, 0);
+}
+
+void loop() {
+  // Check for serial input
+  if (Serial.available() > 0) {
+    Incoming_value = Serial.read();
+    Serial.print(Incoming_value);
+    Serial.print("\n");
+
+    // Control LED based on input
+    if (Incoming_value == '1') {
+      digitalWrite(ledPin, HIGH);
+    } else if (Incoming_value == '0') {
+      digitalWrite(ledPin, LOW);
+    }
+  }
+
+  // Obstacle avoidance logic
+  int distance = mySensor.ping_cm();
+
+  if (distance > 0 && distance < DISTANCE_TO_CHECK) {
+    // Stop motors
+    rotateMotor(0, 0);
+    delay(250);
+
+    // Reverse motors
+    rotateMotor(-MAX_MOTOR_ADJUST_SPEED, -MAX_MOTOR_ADJUST_SPEED);
+    delay(250);
+
+    // Stop motors
+    rotateMotor(0, 0);
+    delay(500);
+
+    // Servo scanning
+    myServo.write(180);
+    delay(1000);
+    int distanceLeft = mySensor.ping_cm();
+
+    myServo.write(0);
+    delay(1000);
+    int distanceRight = mySensor.ping_cm();
+
+    myServo.write(90);
+    delay(1000);
+
+    // Decide direction
+    if (distanceLeft == 0 || distanceLeft >= distanceRight) {
+      rotateMotor(MAX_MOTOR_ADJUST_SPEED, -MAX_MOTOR_ADJUST_SPEED);
+      delay(300);
+    } else {
+      rotateMotor(-MAX_MOTOR_ADJUST_SPEED, MAX_MOTOR_ADJUST_SPEED);
+      delay(300);
+    }
+    rotateMotor(0, 0);
+    delay(500);
+  } else {
+    rotateMotor(MAX_REGULAR_MOTOR_SPEED, MAX_REGULAR_MOTOR_SPEED);
+  }
+}
+
+void rotateMotor(int rightMotorSpeed, int leftMotorSpeed) {
+  // Right motor control
+  if (rightMotorSpeed < 0) {
+    digitalWrite(rightMotorPin1, LOW);
+    digitalWrite(rightMotorPin2, HIGH);
+  } else {
+    digitalWrite(rightMotorPin1, HIGH);
+    digitalWrite(rightMotorPin2, LOW);
+  }
+
+  // Left motor control
+  if (leftMotorSpeed < 0) {
+    digitalWrite(leftMotorPin1, LOW);
+    digitalWrite(leftMotorPin2, HIGH);
+  } else {
+    digitalWrite(leftMotorPin1, HIGH);
+    digitalWrite(leftMotorPin2, LOW);
+  }
+
+  // Set motor speeds
+  analogWrite(enableRightMotor, abs(rightMotorSpeed));
+  analogWrite(enableLeftMotor, abs(leftMotorSpeed));
+}
